@@ -62,10 +62,14 @@ jobs:
             VERSION="${{ inputs.version }}"
           else
             # extract version from dockerfile for PRs
-            if [ -f "*/Dockerfile" ]; then
+            if [ -f "Dockerfile" ]; then
+              # check root dockerfile first
+              VERSION=$(grep "ENV UNBOUND_VERSION=" "Dockerfile" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+            elif [ -f "*/Dockerfile" ]; then
+              # fallback to versioned directories if they exist
               DOCKERFILE_PATH=$(find . -name "Dockerfile" -path "*/[0-9]*" | head -1)
               if [ -n "$DOCKERFILE_PATH" ]; then
-                VERSION=$(grep "ENV UNBOUND_VERSION=" "$DOCKERFILE_PATH" | cut -d'=' -f2)
+                VERSION=$(grep "ENV UNBOUND_VERSION=" "$DOCKERFILE_PATH" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
                 # also extract directory name as fallback
                 DIR_VERSION=$(dirname "$DOCKERFILE_PATH" | sed 's|^\./||')
                 VERSION=${VERSION:-$DIR_VERSION}
@@ -79,7 +83,27 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "📦 building version: ${VERSION}"
       
-      - name: determine temporary tag
+      - name: determine build context
+        id: context
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # check if we have a versioned directory structure
+          if [ -d "./${VERSION}" ] && [ -f "./${VERSION}/Dockerfile" ]; then
+            BUILD_CONTEXT="./${VERSION}"
+            DOCKERFILE_PATH="./${VERSION}/Dockerfile"
+            echo "📁 using versioned directory: ${BUILD_CONTEXT}"
+          elif [ -f "./Dockerfile" ]; then
+            BUILD_CONTEXT="."
+            DOCKERFILE_PATH="./Dockerfile"
+            echo "📁 using root directory: ${BUILD_CONTEXT}"
+          else
+            echo "❌ ERROR: no Dockerfile found in ./${VERSION}/ or ./" >&2
+            exit 1
+          fi
+          
+          echo "build_context=${BUILD_CONTEXT}" >> $GITHUB_OUTPUT
+          echo "dockerfile_path=${DOCKERFILE_PATH}" >> $GITHUB_OUTPUT
         id: temp-tag
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
@@ -92,7 +116,8 @@ jobs:
           echo "temp_tag=${TEMP_TAG}" >> $GITHUB_OUTPUT
           echo "🏷️ using temporary tag: ${TEMP_TAG}"
       
-      - name: extract metadata
+      - name: determine temporary tag
+        id: temp-tag
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -108,27 +133,11 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
       
-      - name: update pr status - building
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.repos.createCommitStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              sha: context.sha,
-              state: 'pending',
-              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-              description: 'building multi-arch docker images',
-              context: 'docker/build'
-            });
-      
       - name: build and push docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./${{ steps.version.outputs.version }}
-          file: ./${{ steps.version.outputs.version }}/Dockerfile
+          context: ${{ steps.context.outputs.build_context }}
+          file: ${{ steps.context.outputs.dockerfile_path }}
           platforms: linux/arm/v7,linux/arm64,linux/amd64
           push: ${{ github.event_name == 'pull_request' || inputs.push_temp }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -177,7 +186,7 @@ jobs:
           echo "✅ successfully built multi-arch images for version **${{ steps.version.outputs.version }}**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **platforms**: linux/arm/v7, linux/arm64, linux/amd64" >> $GITHUB_STEP_SUMMARY
-          echo "- **context**: ./${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **context**: \`${{ steps.context.outputs.build_context }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **temporary tag**: \`${{ steps.temp-tag.outputs.temp_tag }}\`" >> $GITHUB_STEP_SUMMARY
           if [[ "${{ github.event_name }}" == "pull_request" || "${{ inputs.push_temp }}" == "true" ]]; then
             echo "- **registry**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\`" >> $GITHUB_STEP_SUMMARY

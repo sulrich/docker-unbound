@@ -85,7 +85,27 @@ jobs:
             echo "🏷️ manual release: ${VERSION}"
           fi
       
-      - name: check for existing artifacts
+      - name: determine build context
+        id: context
+        run: |
+          VERSION="${{ steps.release-info.outputs.version }}"
+          
+          # check if we have a versioned directory structure
+          if [ -d "./${VERSION}" ] && [ -f "./${VERSION}/Dockerfile" ]; then
+            BUILD_CONTEXT="./${VERSION}"
+            DOCKERFILE_PATH="./${VERSION}/Dockerfile"
+            echo "📁 using versioned directory: ${BUILD_CONTEXT}"
+          elif [ -f "./Dockerfile" ]; then
+            BUILD_CONTEXT="."
+            DOCKERFILE_PATH="./Dockerfile"
+            echo "📁 using root directory: ${BUILD_CONTEXT}"
+          else
+            echo "❌ ERROR: no Dockerfile found in ./${VERSION}/ or ./" >&2
+            exit 1
+          fi
+          
+          echo "build_context=${BUILD_CONTEXT}" >> $GITHUB_OUTPUT
+          echo "dockerfile_path=${DOCKERFILE_PATH}" >> $GITHUB_OUTPUT
         id: check-artifacts
         run: |
           TEMP_TAG="${{ needs.build.outputs.temp_tag }}"
@@ -102,7 +122,8 @@ jobs:
             echo "use_artifacts=false" >> $GITHUB_OUTPUT
           fi
       
-      - name: extract release metadata
+      - name: check for existing artifacts
+        id: check-artifacts
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -136,8 +157,8 @@ jobs:
         if: steps.check-artifacts.outputs.use_artifacts != 'true' || inputs.force_rebuild
         uses: docker/build-push-action@v5
         with:
-          context: ./${{ steps.release-info.outputs.version }}
-          file: ./${{ steps.release-info.outputs.version }}/Dockerfile
+          context: ${{ steps.context.outputs.build_context }}
+          file: ${{ steps.context.outputs.dockerfile_path }}
           platforms: linux/arm/v7,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -181,3 +202,4 @@ jobs:
           for tag in "${TAGS[@]}"; do
             echo "- \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${tag}\`" >> $GITHUB_STEP_SUMMARY
           done
+
