@@ -26,7 +26,6 @@ jobs:
   build:
     uses: ./.github/workflows/docker-build.yml
     with:
-      version: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
       push_temp: true
   
   release:
@@ -63,7 +62,11 @@ jobs:
             VERSION=${VERSION#v}
             RELEASE_TYPE="tag"
           elif [[ "${{ github.ref_name }}" == "main" ]]; then
-            VERSION="${{ needs.build.outputs.version }}"
+            # extract version from root dockerfile
+            VERSION=$(grep "ENV UNBOUND_VERSION=" "Dockerfile" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+            if [[ -z "$VERSION" ]]; then
+              VERSION="1.23.1"  # fallback
+            fi
             RELEASE_TYPE="main"
           else
             echo "❌ unsupported release trigger" >&2
@@ -90,17 +93,12 @@ jobs:
         run: |
           VERSION="${{ steps.release-info.outputs.version }}"
           
-          # check if we have a versioned directory structure
-          if [ -d "./${VERSION}" ] && [ -f "./${VERSION}/Dockerfile" ]; then
-            BUILD_CONTEXT="./${VERSION}"
-            DOCKERFILE_PATH="./${VERSION}/Dockerfile"
-            echo "📁 using versioned directory: ${BUILD_CONTEXT}"
-          elif [ -f "./Dockerfile" ]; then
+          if [ -f "./Dockerfile" ]; then
             BUILD_CONTEXT="."
             DOCKERFILE_PATH="./Dockerfile"
             echo "📁 using root directory: ${BUILD_CONTEXT}"
           else
-            echo "❌ ERROR: no Dockerfile found in ./${VERSION}/ or ./" >&2
+            echo "❌ ERROR: no Dockerfile" >&2
             exit 1
           fi
           
@@ -131,7 +129,7 @@ jobs:
           tags: |
             type=raw,value=${{ steps.release-info.outputs.release_tags }}
           labels: |
-            org.opencontainers.image.title=unbound-rpi
+            org.opencontainers.image.title=unbound
             org.opencontainers.image.description=unbound dns resolver for raspberry pi
             org.opencontainers.image.version=${{ steps.release-info.outputs.version }}
             org.opencontainers.image.url=https://github.com/${{ github.repository }}
@@ -153,7 +151,52 @@ jobs:
             docker buildx imagetools create --tag "${TARGET_IMAGE}" "${SOURCE_IMAGE}"
           done
       
-      - name: build and push from scratch
+      - name: check for existing artifacts
+        id: check-artifacts
+        run: |
+          TEMP_TAG="${{ needs.build.outputs.temp_tag }}"
+          SOURCE_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TEMP_TAG}"
+          
+          echo "🔍 checking for build artifacts: ${SOURCE_IMAGE}"
+          
+          if docker buildx imagetools inspect "${SOURCE_IMAGE}" > /dev/null 2>&1; then
+            echo "✅ found existing build artifacts"
+            echo "use_artifacts=true" >> $GITHUB_OUTPUT
+            echo "source_image=${SOURCE_IMAGE}" >> $GITHUB_OUTPUT
+          else
+            echo "❌ no build artifacts found, will rebuild"
+            echo "use_artifacts=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: extract release metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.release-info.outputs.release_tags }}
+          labels: |
+            org.opencontainers.image.title=unbound
+            org.opencontainers.image.description=unbound dns resolver for raspberry pi
+            org.opencontainers.image.version=${{ steps.release-info.outputs.version }}
+            org.opencontainers.image.url=https://github.com/${{ github.repository }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.licenses=MIT
+      
+      - name: promote existing artifacts
+        if: steps.check-artifacts.outputs.use_artifacts == 'true' && !inputs.force_rebuild
+        run: |
+          SOURCE_IMAGE="${{ steps.check-artifacts.outputs.source_image }}"
+          
+          echo "🚀 promoting build artifacts to release tags"
+          
+          # split the release tags and promote to each one
+          IFS=',' read -ra TAGS <<< "${{ steps.release-info.outputs.release_tags }}"
+          for tag in "${TAGS[@]}"; do
+            TARGET_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${tag}"
+            echo "📦 promoting ${SOURCE_IMAGE} -> ${TARGET_IMAGE}"
+            docker buildx imagetools create --tag "${TARGET_IMAGE}" "${SOURCE_IMAGE}"
+          done
         if: steps.check-artifacts.outputs.use_artifacts != 'true' || inputs.force_rebuild
         uses: docker/build-push-action@v5
         with:
@@ -202,4 +245,3 @@ jobs:
           for tag in "${TAGS[@]}"; do
             echo "- \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${tag}\`" >> $GITHUB_STEP_SUMMARY
           done
-

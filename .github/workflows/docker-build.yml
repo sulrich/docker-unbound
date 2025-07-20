@@ -61,22 +61,9 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_call" ]]; then
             VERSION="${{ inputs.version }}"
           else
-            # extract version from dockerfile for PRs
-            if [ -f "Dockerfile" ]; then
-              # check root dockerfile first
-              VERSION=$(grep "ENV UNBOUND_VERSION=" "Dockerfile" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
-            elif [ -f "*/Dockerfile" ]; then
-              # fallback to versioned directories if they exist
-              DOCKERFILE_PATH=$(find . -name "Dockerfile" -path "*/[0-9]*" | head -1)
-              if [ -n "$DOCKERFILE_PATH" ]; then
-                VERSION=$(grep "ENV UNBOUND_VERSION=" "$DOCKERFILE_PATH" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
-                # also extract directory name as fallback
-                DIR_VERSION=$(dirname "$DOCKERFILE_PATH" | sed 's|^\./||')
-                VERSION=${VERSION:-$DIR_VERSION}
-              else
-                VERSION="1.23.1"  # fallback
-              fi
-            else
+            # extract version from root dockerfile
+            VERSION=$(grep "ENV UNBOUND_VERSION=" "Dockerfile" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+            if [[ -z "$VERSION" ]]; then
               VERSION="1.23.1"  # fallback
             fi
           fi
@@ -88,17 +75,12 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           
-          # check if we have a versioned directory structure
-          if [ -d "./${VERSION}" ] && [ -f "./${VERSION}/Dockerfile" ]; then
-            BUILD_CONTEXT="./${VERSION}"
-            DOCKERFILE_PATH="./${VERSION}/Dockerfile"
-            echo "📁 using versioned directory: ${BUILD_CONTEXT}"
-          elif [ -f "./Dockerfile" ]; then
+          if [ -f "./Dockerfile" ]; then
             BUILD_CONTEXT="."
             DOCKERFILE_PATH="./Dockerfile"
             echo "📁 using root directory: ${BUILD_CONTEXT}"
           else
-            echo "❌ ERROR: no Dockerfile found in ./${VERSION}/ or ./" >&2
+            echo "❌ ERROR: no Dockerfile found" >&2
             exit 1
           fi
           
@@ -126,7 +108,7 @@ jobs:
             type=raw,value=${{ steps.temp-tag.outputs.temp_tag }}
             type=raw,value=${{ steps.version.outputs.version }}-${{ steps.temp-tag.outputs.temp_tag }}
           labels: |
-            org.opencontainers.image.title=unbound-rpi
+            org.opencontainers.image.title=unbound
             org.opencontainers.image.description=unbound dns resolver for raspberry pi
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
             org.opencontainers.image.url=https://github.com/${{ github.repository }}
@@ -136,8 +118,8 @@ jobs:
       - name: build and push docker image
         uses: docker/build-push-action@v5
         with:
-          context: ${{ steps.context.outputs.build_context }}
-          file: ${{ steps.context.outputs.dockerfile_path }}
+          context: .
+          file: ./Dockerfile
           platforms: linux/arm/v7,linux/arm64,linux/amd64
           push: ${{ github.event_name == 'pull_request' || inputs.push_temp }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -186,7 +168,7 @@ jobs:
           echo "✅ successfully built multi-arch images for version **${{ steps.version.outputs.version }}**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **platforms**: linux/arm/v7, linux/arm64, linux/amd64" >> $GITHUB_STEP_SUMMARY
-          echo "- **context**: \`${{ steps.context.outputs.build_context }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **context**: \`.\`" >> $GITHUB_STEP_SUMMARY
           echo "- **temporary tag**: \`${{ steps.temp-tag.outputs.temp_tag }}\`" >> $GITHUB_STEP_SUMMARY
           if [[ "${{ github.event_name }}" == "pull_request" || "${{ inputs.push_temp }}" == "true" ]]; then
             echo "- **registry**: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\`" >> $GITHUB_STEP_SUMMARY
