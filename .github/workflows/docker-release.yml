@@ -4,12 +4,19 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - 'main'
   workflow_dispatch:
     inputs:
       version:
         description: 'unbound version to build and release (e.g., 1.23.1)'
         required: true
         type: string
+      force_rebuild:
+        description: 'force rebuild instead of using cached artifacts'
+        required: false
+        type: boolean
+        default: false
 
 env:
   REGISTRY: ghcr.io
@@ -20,6 +27,7 @@ jobs:
     uses: ./.github/workflows/docker-build.yml
     with:
       version: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+      push_temp: true
   
   release:
     runs-on: ubuntu-latest
@@ -33,9 +41,6 @@ jobs:
       - name: checkout repository
         uses: actions/checkout@v4
       
-      - name: set up qemu
-        uses: docker/setup-qemu-action@v3
-      
       - name: set up docker buildx
         uses: docker/setup-buildx-action@v3
       
@@ -46,52 +51,133 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: determine version
-        id: version
+      - name: determine version and release tags
+        id: release-info
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             VERSION="${{ inputs.version }}"
-          else
+            RELEASE_TYPE="manual"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
             # extract version from tag (remove 'v' prefix)
             VERSION="${{ github.ref_name }}"
             VERSION=${VERSION#v}
+            RELEASE_TYPE="tag"
+          elif [[ "${{ github.ref_name }}" == "main" ]]; then
+            VERSION="${{ needs.build.outputs.version }}"
+            RELEASE_TYPE="main"
+          else
+            echo "❌ unsupported release trigger" >&2
+            exit 1
           fi
+          
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "releasing version: ${VERSION}"
+          echo "release_type=${RELEASE_TYPE}" >> $GITHUB_OUTPUT
+          
+          # determine release tags based on trigger type
+          if [[ "${RELEASE_TYPE}" == "tag" ]]; then
+            echo "release_tags=${VERSION},latest" >> $GITHUB_OUTPUT
+            echo "🏷️ tagged release: ${VERSION} (will also tag as latest)"
+          elif [[ "${RELEASE_TYPE}" == "main" ]]; then
+            echo "release_tags=${VERSION}-main,main" >> $GITHUB_OUTPUT
+            echo "🏷️ main branch release: ${VERSION}-main"
+          else
+            echo "release_tags=${VERSION}" >> $GITHUB_OUTPUT
+            echo "🏷️ manual release: ${VERSION}"
+          fi
       
-      - name: extract metadata
+      - name: check for existing artifacts
+        id: check-artifacts
+        run: |
+          TEMP_TAG="${{ needs.build.outputs.temp_tag }}"
+          SOURCE_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TEMP_TAG}"
+          
+          echo "🔍 checking for build artifacts: ${SOURCE_IMAGE}"
+          
+          if docker buildx imagetools inspect "${SOURCE_IMAGE}" > /dev/null 2>&1; then
+            echo "✅ found existing build artifacts"
+            echo "use_artifacts=true" >> $GITHUB_OUTPUT
+            echo "source_image=${SOURCE_IMAGE}" >> $GITHUB_OUTPUT
+          else
+            echo "❌ no build artifacts found, will rebuild"
+            echo "use_artifacts=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: extract release metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ steps.version.outputs.version }}
-            type=raw,value=latest
+            type=raw,value=${{ steps.release-info.outputs.release_tags }}
           labels: |
-            org.opencontainers.image.title=unbound
-            org.opencontainers.image.description="unbound dns resolver for raspberry pi"
-            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.title=unbound-rpi
+            org.opencontainers.image.description=unbound dns resolver for raspberry pi
+            org.opencontainers.image.version=${{ steps.release-info.outputs.version }}
             org.opencontainers.image.url=https://github.com/${{ github.repository }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
       
-      - name: build and push docker image
+      - name: promote existing artifacts
+        if: steps.check-artifacts.outputs.use_artifacts == 'true' && !inputs.force_rebuild
+        run: |
+          SOURCE_IMAGE="${{ steps.check-artifacts.outputs.source_image }}"
+          
+          echo "🚀 promoting build artifacts to release tags"
+          
+          # split the release tags and promote to each one
+          IFS=',' read -ra TAGS <<< "${{ steps.release-info.outputs.release_tags }}"
+          for tag in "${TAGS[@]}"; do
+            TARGET_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${tag}"
+            echo "📦 promoting ${SOURCE_IMAGE} -> ${TARGET_IMAGE}"
+            docker buildx imagetools create --tag "${TARGET_IMAGE}" "${SOURCE_IMAGE}"
+          done
+      
+      - name: build and push from scratch
+        if: steps.check-artifacts.outputs.use_artifacts != 'true' || inputs.force_rebuild
         uses: docker/build-push-action@v5
         with:
-          context: ./${{ steps.version.outputs.version }}
-          file: ./${{ steps.version.outputs.version }}/Dockerfile
-          platforms: linux/arm/v7,linux/arm64,linux/amd64
+          context: ./${{ steps.release-info.outputs.version }}
+          file: ./${{ steps.release-info.outputs.version }}/Dockerfile
+          platforms: linux/arm/v7,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            UNBOUND_VERSION=${{ steps.version.outputs.version }}
+            UNBOUND_VERSION=${{ steps.release-info.outputs.version }}
+      
+      - name: cleanup temporary artifacts
+        if: steps.check-artifacts.outputs.use_artifacts == 'true' && !inputs.force_rebuild
+        continue-on-error: true
+        run: |
+          echo "🧹 cleaning up temporary build artifacts"
+          
+          # attempt to delete temporary tags (this might fail if we don't have delete permissions)
+          TEMP_TAG="${{ needs.build.outputs.temp_tag }}"
+          VERSION_TEMP_TAG="${{ steps.release-info.outputs.version }}-${TEMP_TAG}"
+          
+          for tag in "${TEMP_TAG}" "${VERSION_TEMP_TAG}"; do
+            echo "🗑️ attempting to delete temporary tag: ${tag}"
+            # note: this requires delete:packages permission which may not be available
+            # curl -X DELETE \
+            #   -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            #   "https://api.github.com/user/packages/container/${{ github.repository }}/versions" \
+            #   || echo "⚠️ could not delete temporary tag ${tag} (this is expected)"
+          done
       
       - name: release summary
         run: |
-          echo "🚀 successfully released docker images:"
-          echo "• ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}"
-          echo "• ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-          echo "platforms: linux/arm/v7, linux/arm64, linux/amd64"
+          echo "## 🚀 docker release summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ successfully released docker images for version **${{ steps.release-info.outputs.version }}**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **release type**: ${{ steps.release-info.outputs.release_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **source**: ${{ steps.check-artifacts.outputs.use_artifacts == 'true' && !inputs.force_rebuild && 'promoted from build artifacts' || 'rebuilt from source' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **platforms**: linux/arm/v7, linux/arm64" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🏷️ **released tags**:" >> $GITHUB_STEP_SUMMARY
+          IFS=',' read -ra TAGS <<< "${{ steps.release-info.outputs.release_tags }}"
+          for tag in "${TAGS[@]}"; do
+            echo "- \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${tag}\`" >> $GITHUB_STEP_SUMMARY
+          done
