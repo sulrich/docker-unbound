@@ -1,0 +1,83 @@
+name: build docker images
+
+on:
+  pull_request:
+    branches:
+      - '*'
+  workflow_call:
+    inputs:
+      version:
+        description: 'unbound version to build (e.g., 1.23.1)'
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu:latest
+    
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v4
+      
+      - name: set up qemu
+        uses: docker/setup-qemu-action@v3
+      
+      - name: set up docker buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: determine version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_call" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            # extract version from dockerfile for PRs
+            if [ -f "*/Dockerfile" ]; then
+              DOCKERFILE_PATH=$(find . -name "Dockerfile" -path "*/[0-9]*" | head -1)
+              if [ -n "$DOCKERFILE_PATH" ]; then
+                VERSION=$(grep "ENV UNBOUND_VERSION=" "$DOCKERFILE_PATH" | cut -d'=' -f2)
+                # also extract directory name as fallback
+                DIR_VERSION=$(dirname "$DOCKERFILE_PATH" | sed 's|^\./||')
+                VERSION=${VERSION:-$DIR_VERSION}
+              else
+                VERSION="1.23.1"  # fallback
+              fi
+            else
+              VERSION="1.23.1"  # fallback
+            fi
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "building version: ${VERSION}"
+      
+      - name: extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: temp/unbound-rpi
+          tags: |
+            type=ref,event=pr
+            type=raw,value=${{ steps.version.outputs.version }}
+          labels: |
+            org.opencontainers.image.title=unbound-rpi
+            org.opencontainers.image.description=unbound dns resolver for raspberry pi
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+      
+      - name: build docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ steps.version.outputs.version }}
+          file: ./${{ steps.version.outputs.version }}/Dockerfile
+          platforms: linux/arm/v7,linux/arm64,linux/amd64
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            UNBOUND_VERSION=${{ steps.version.outputs.version }}
+      
+      - name: build summary
+        run: |
+          echo "✅ successfully built multi-arch images for version ${{ steps.version.outputs.version }}"
+          echo "platforms: linux/arm/v7, linux/arm64, linux/amd64"
+          echo "context: ./${{ steps.version.outputs.version }}"
