@@ -68,8 +68,8 @@ jobs:
             type=raw,value=${{ steps.version.outputs.version }}
             type=raw,value=latest
           labels: |
-            org.opencontainers.image.title=unbound-rpi
-            org.opencontainers.image.description=unbound dns resolver for raspberry pi
+            org.opencontainers.image.title=unbound
+            org.opencontainers.image.description="unbound dns resolver for raspberry pi"
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
             org.opencontainers.image.url=https://github.com/${{ github.repository }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
@@ -80,7 +80,7 @@ jobs:
         with:
           context: ./${{ steps.version.outputs.version }}
           file: ./${{ steps.version.outputs.version }}/Dockerfile
-          platforms: linux/arm/v7,linux/arm64
+          platforms: linux/arm/v7,linux/arm64,linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -94,4 +94,4 @@ jobs:
           echo "🚀 successfully released docker images:"
           echo "• ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}"
           echo "• ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-          echo "platforms: linux/arm/v7, linux/arm64"
+          echo "platforms: linux/arm/v7, linux/arm64, linux/amd64"

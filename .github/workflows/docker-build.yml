@@ -58,8 +58,8 @@ jobs:
             type=ref,event=pr
             type=raw,value=${{ steps.version.outputs.version }}
           labels: |
-            org.opencontainers.image.title=unbound-rpi
-            org.opencontainers.image.description=unbound dns resolver for raspberry pi
+            org.opencontainers.image.title=unbound
+            org.opencontainers.image.description="unbound dns resolver for raspberry pi"
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
       
       - name: build docker image
