@@ -110,6 +110,7 @@ jobs:
       
       - name: update pr status - building
         if: github.event_name == 'pull_request'
+        continue-on-error: true
         uses: actions/github-script@v7
         with:
           script: |
@@ -139,6 +140,7 @@ jobs:
       
       - name: update pr status - success
         if: github.event_name == 'pull_request' && success()
+        continue-on-error: true
         uses: actions/github-script@v7
         with:
           script: |
@@ -154,6 +156,7 @@ jobs:
       
       - name: update pr status - failure
         if: github.event_name == 'pull_request' && failure()
+        continue-on-error: true
         uses: actions/github-script@v7
         with:
           script: |
@@ -186,4 +189,3 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "📝 **note**: images built for validation only (not pushed)" >> $GITHUB_STEP_SUMMARY
           fi
-
