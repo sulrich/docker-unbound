@@ -61,7 +61,7 @@ jobs:
             exit 1
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "📦 building version: ${VERSION}"
+          echo "📦 building version: ${VERSION}" >&2
       
       - name: extract metadata
         id: meta

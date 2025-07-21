@@ -46,7 +46,7 @@ jobs:
             fi
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "📦 building version: ${VERSION}"
+          echo "📦 building version: ${VERSION}" >&2
       
       - name: build docker image (test build only)
         uses: docker/build-push-action@v6
