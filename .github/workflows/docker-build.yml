@@ -38,15 +38,14 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.version }}" ]]; then
             VERSION="${{ inputs.version }}"
           else
-            # extract version from dockerfile
             VERSION=$(grep "ENV UNBOUND_VERSION=" Dockerfile | cut -d'=' -f2)
             if [[ -z "$VERSION" ]]; then
               echo "❌ could not determine unbound version from dockerfile" >&2
               exit 1
             fi
           fi
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          # echo "📦 building version: ${VERSION}" >&2
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "📦 building version: ${VERSION}"
       
       - name: build docker image (test build only)
         uses: docker/build-push-action@v6
