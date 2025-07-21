@@ -1,4 +1,4 @@
-FROM debian:bullseye AS openssl
+FROM debian:bookworm AS openssl
 
 ENV VERSION_OPENSSL=openssl-3.5.1 \
     SHA256_OPENSSL=529043b15cffa5f36077a4d0af83f3de399807181d607441d734196d889b641f \
@@ -100,6 +100,20 @@ RUN build_deps="curl gcc libc-dev libevent-dev libexpat1-dev libnghttp2-dev make
         /tmp/* \
         /var/tmp/* \
         /var/lib/apt/lists/*
+
+FROM debian:bookworm AS test
+
+WORKDIR /tmp/src
+
+COPY --from=unbound /opt /opt
+
+RUN set -x && \
+    DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y --no-install-recommends dnsutils && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY data/test.sh /test.sh
+
+RUN chmod +x /test.sh
 
 FROM debian:bullseye
 

@@ -52,13 +52,18 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64,linux/arm64
           push: false
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
             UNBOUND_VERSION=${{ steps.version.outputs.version }}
+      
+      - name: run docker image tests
+        run: |
+          docker build --target test --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test-build .
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test-build /test.sh
       
       - name: build summary
         run: |
