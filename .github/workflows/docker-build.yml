@@ -90,18 +90,18 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
           
-          # generate labels
-          cat >> $GITHUB_OUTPUT << EOF
-          labels<<EOL
-          org.opencontainers.image.title=unbound
-          org.opencontainers.image.description=unbound dns resolver
-          org.opencontainers.image.version=${VERSION}
-          org.opencontainers.image.url=https://github.com/${{ github.repository }}
-          org.opencontainers.image.source=https://github.com/${{ github.repository }}
-          org.opencontainers.image.licenses=MIT
-          org.opencontainers.image.revision=${{ github.sha }}
-          EOL
-          EOF
+          # generate labels using proper multiline syntax
+          {
+            echo "labels<<EOF"
+            echo "org.opencontainers.image.title=unbound"
+            echo "org.opencontainers.image.description=unbound dns resolver"
+            echo "org.opencontainers.image.version=${VERSION}"
+            echo "org.opencontainers.image.url=https://github.com/${{ github.repository }}"
+            echo "org.opencontainers.image.source=https://github.com/${{ github.repository }}"
+            echo "org.opencontainers.image.licenses=MIT"
+            echo "org.opencontainers.image.revision=${{ github.sha }}"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
       
       - name: build and push
         id: build
