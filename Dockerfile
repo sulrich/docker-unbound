@@ -53,7 +53,7 @@ RUN set -e -x && \
         /var/tmp/* \
         /var/lib/apt/lists/*
 
-FROM debian:bullseye AS unbound
+FROM debian:bookworm AS unbound
 
 ENV NAME=unbound
 ENV UNBOUND_VERSION=1.23.1
@@ -115,7 +115,7 @@ COPY data/test.sh /test.sh
 
 RUN chmod +x /test.sh
 
-FROM debian:bullseye
+FROM debian:bookworm
 
 WORKDIR /tmp/src
 
