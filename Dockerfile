@@ -56,7 +56,7 @@ RUN set -e -x && \
 FROM debian:bullseye AS unbound
 
 ENV NAME=unbound
-ENV UNBOUND_VERSION="1.23.1"
+ENV UNBOUND_VERSION=1.23.1
 ENV UNBOUND_SHA256=6a6b117c799d8de3868643397e0fd71591f6d42f4473f598bdb22609ff362590
 ENV UNBOUND_DOWNLOAD_URL=https://nlnetlabs.nl/downloads/unbound/unbound-1.23.1.tar.gz
 
