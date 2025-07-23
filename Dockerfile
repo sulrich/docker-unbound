@@ -47,20 +47,7 @@ RUN build_deps="curl gcc libc-dev libevent-dev libexpat1-dev libnghttp2-dev libs
         /var/tmp/* \
         /var/lib/apt/lists/*
 
-FROM debian:bookworm AS test
-
-WORKDIR /tmp/src
-
-COPY --from=unbound /opt /opt
-
-RUN set -x && \
-    DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y --no-install-recommends dnsutils && \
-    rm -rf /var/lib/apt/lists/*
-
-COPY data/test.sh /test.sh
-
-RUN chmod +x /test.sh
-
+# build the target image
 FROM debian:bookworm
 
 WORKDIR /tmp/src
@@ -89,6 +76,7 @@ RUN set -x && \
 COPY data/ /
 
 RUN chmod +x /unbound.sh
+RUN chmod +x /test.sh
 
 WORKDIR /opt/unbound/
 
