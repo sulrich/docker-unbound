@@ -16,7 +16,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -47,13 +47,12 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "📦 building version: ${VERSION}"
       
-      - name: build docker image (test build only)
+      - name: build docker image for testing
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64, linux/arm64, linux/arm/v7
-          push: false
+          load: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -63,6 +62,19 @@ jobs:
       - name: run docker image tests
         run: |
           docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test /test.sh
+      
+      - name: build multi-arch docker image (validation)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64, linux/arm64, linux/arm/v7
+          push: false
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test-multiarch
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            UNBOUND_VERSION=${{ steps.version.outputs.version }}
       
       - name: build summary
         run: |
