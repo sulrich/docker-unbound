@@ -62,8 +62,7 @@ jobs:
       
       - name: run docker image tests
         run: |
-          docker build --target test --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test-build .
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test-build /test.sh
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test /test.sh
       
       - name: build summary
         run: |
