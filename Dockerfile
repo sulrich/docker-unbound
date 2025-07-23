@@ -41,6 +41,7 @@ RUN set -e -x && \
       no-weak-ssl-ciphers \
       no-ssl3 \
       no-shared \
+      no-tests \
       -DOPENSSL_NO_HEARTBEATS \
       -fstack-protector-strong && \
     make depend && \
