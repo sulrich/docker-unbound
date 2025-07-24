@@ -3,17 +3,24 @@ name: build docker images
 on:
   pull_request:
     branches:
-      - '*'
-  workflow_call:
+      - main
+  workflow_dispatch:
     inputs:
       version:
         description: 'unbound version to build (e.g., 1.23.1)'
-        required: true
+        required: false
         type: string
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
-  build:
-    runs-on: ubuntu:latest
+  build-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     
     steps:
       - name: checkout repository
@@ -28,56 +35,42 @@ jobs:
       - name: determine version
         id: version
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_call" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.version }}" ]]; then
             VERSION="${{ inputs.version }}"
           else
-            # extract version from dockerfile for PRs
-            if [ -f "*/Dockerfile" ]; then
-              DOCKERFILE_PATH=$(find . -name "Dockerfile" -path "*/[0-9]*" | head -1)
-              if [ -n "$DOCKERFILE_PATH" ]; then
-                VERSION=$(grep "ENV UNBOUND_VERSION=" "$DOCKERFILE_PATH" | cut -d'=' -f2)
-                # also extract directory name as fallback
-                DIR_VERSION=$(dirname "$DOCKERFILE_PATH" | sed 's|^\./||')
-                VERSION=${VERSION:-$DIR_VERSION}
-              else
-                VERSION="1.23.1"  # fallback
-              fi
-            else
-              VERSION="1.23.1"  # fallback
+            VERSION=$(grep "ENV UNBOUND_VERSION=" Dockerfile | cut -d'=' -f2 | tr -d '\n')
+            if [[ -z "$VERSION" ]]; then
+              echo "❌ could not determine unbound version from dockerfile" >&2
+              exit 1
             fi
           fi
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "building version: ${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "📦 building version: ${VERSION}"
       
-      - name: extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
+      - name: build docker image for testing
+        uses: docker/build-push-action@v6
         with:
-          images: temp/unbound-rpi
-          tags: |
-            type=ref,event=pr
-            type=raw,value=${{ steps.version.outputs.version }}
-          labels: |
-            org.opencontainers.image.title=unbound-rpi
-            org.opencontainers.image.description=unbound dns resolver for raspberry pi
-            org.opencontainers.image.version=${{ steps.version.outputs.version }}
-      
-      - name: build docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./${{ steps.version.outputs.version }}
-          file: ./${{ steps.version.outputs.version }}/Dockerfile
-          platforms: linux/arm/v7,linux/arm64,linux/amd64
-          push: false
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
             UNBOUND_VERSION=${{ steps.version.outputs.version }}
       
+      - name: run docker image tests
+        run: |
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test /test.sh
+      
       - name: build summary
         run: |
-          echo "✅ successfully built multi-arch images for version ${{ steps.version.outputs.version }}"
-          echo "platforms: linux/arm/v7, linux/arm64, linux/amd64"
-          echo "context: ./${{ steps.version.outputs.version }}"
+          echo "## 🐳 docker build summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ successfully built multi-arch images for version **${{ steps.version.outputs.version }}**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **platforms**: linux/amd64, linux/arm64, linux/arm/v7" >> $GITHUB_STEP_SUMMARY
+          echo "- **context**: \`.\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **dockerfile**: \`./Dockerfile\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📝 **note**: this was a test build only - no images were pushed to registry" >> $GITHUB_STEP_SUMMARY
