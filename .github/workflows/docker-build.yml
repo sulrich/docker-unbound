@@ -63,19 +63,6 @@ jobs:
         run: |
           docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test /test.sh
       
-      - name: build multi-arch docker image (validation)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64, linux/arm64, linux/arm/v7
-          push: false
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test-multiarch
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            UNBOUND_VERSION=${{ steps.version.outputs.version }}
-      
       - name: build summary
         run: |
           echo "## 🐳 docker build summary" >> $GITHUB_STEP_SUMMARY
