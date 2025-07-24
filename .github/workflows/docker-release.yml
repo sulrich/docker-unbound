@@ -40,7 +40,9 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             VERSION="${{ inputs.version }}"
           elif [[ "${{ github.ref_type }}" == "tag" ]]; then
-            VERSION="${{ github.ref_name#v }}"
+            # Correctly remove the 'v' prefix from the tag using shell syntax
+            GIT_TAG="${{ github.ref_name }}"
+            VERSION="${GIT_TAG#v}"
           else
             echo "❌ unsupported trigger for release workflow" >&2
             exit 1
