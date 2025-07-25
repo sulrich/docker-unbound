@@ -124,6 +124,20 @@ jobs:
         run: |
           docker buildx imagetools create ${{ needs.build.outputs.image_tag }} --tag ${{ join(fromJSON(steps.meta.outputs.json).tags, ' --tag ') }}
 
+      - name: Install gcrane
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          install-only: true
+          version: latest
+
+      - name: Authenticate gcrane
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | gcrane auth login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Delete temporary SHA tag
+        run: |
+          gcrane delete ${{ needs.build.outputs.image_tag }}    
+
       - name: Release summary
         run: |
           echo "## 🚀 docker release summary" >> $GITHUB_STEP_SUMMARY
