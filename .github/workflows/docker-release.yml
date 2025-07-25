@@ -123,10 +123,8 @@ jobs:
       # note: since i'm pushing a multi-arch image, i need to use the buildx commands
       - name: Retag multi-arch image for release
         run: |
-          docker buildx imagetools create \
-            ${{ needs.build.outputs.image_tag }} \
-            --tag ghcr.io/sulrich/docker-unbound:${{ needs.build.outputs.version }} \
-            $(if [ "${{ inputs.tag_as_latest }}" = "true" ]; then echo "--tag ghcr.io/sulrich/docker-unbound:latest"; fi)
+          TAG_OPTIONS=$(echo "${{ steps.meta.outputs.tags }}" | sed 's/^/--tag /' | tr '\n' ' ')
+          docker buildx imagetools create ${{ needs.build.outputs.image_tag }} $TAG_OPTIONS
 
       - name: Release summary
         run: |
