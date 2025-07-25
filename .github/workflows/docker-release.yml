@@ -121,11 +121,11 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref_type == 'tag' || inputs.tag_as_latest == true }}
 
       - name: Tag and push latest (if required)
-            if: github.ref_type == 'tag' || inputs.tag_as_latest == true
-            run: |
-              docker pull ${{ needs.build.outputs.image_tag }}
-              docker tag ${{ needs.build.outputs.image_tag }} ghcr.io/sulrich/docker-unbound:latest
-              docker push ghcr.io/sulrich/docker-unbound:latest
+        if: github.ref_type == 'tag' || inputs.tag_as_latest == true
+        run: |
+          docker pull ${{ needs.build.outputs.image_tag }}
+          docker tag ${{ needs.build.outputs.image_tag }} ghcr.io/sulrich/docker-unbound:latest
+          docker push ghcr.io/sulrich/docker-unbound:latest
      
       - name: Re-tag the image for release
         run: |
