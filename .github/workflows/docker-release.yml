@@ -50,13 +50,13 @@ jobs:
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
       
-      - name: Build and export image to a local tarball
+      - name: Build and export image to a local OCI tarball
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: false
-          outputs: type=docker,dest=/tmp/unbound-image.tar
+          outputs: type=oci,dest=/tmp/unbound-image.tar
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
           build-args: |
             UNBOUND_VERSION=${{ steps.version.outputs.version }}
@@ -124,10 +124,6 @@ jobs:
           tags: |
             type=raw,value=${{ needs.build.outputs.version }}
             type=raw,value=latest,enable=${{ github.ref_type == 'tag' || inputs.tag_as_latest == true }}
-      
-      - name: Re-tag the image for release
-        run: |
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.version }} ${{ steps.meta.outputs.tags }}
       
       - name: Push release images to registry
         run: |
