@@ -1,17 +1,20 @@
 # Unbound DNS Server Docker Image
 
-Run Unbound with latest version of OpenSSL with Docker.
-
 This is a fork of <https://github.com/MatthewVance/unbound-docker-rpi/>  with
 some build process simplifications and support for building multiple
-architectures to accommodate different generations of the raspberry pi.  this
-repo will attempt to follow the latest state of unbound.
+platform architectures to accommodate different generations of the raspberry pi
+as well as standard linux/amd64.  this repo will attempt to follow the latest
+state of unbound.
 
 there are some interesting config bits in the @mvance repo that i haven't
 reviewed as i just override everything with my personal configurations on the
-volume mounting.
+volume mounting.  everything below the break below, is from the original
+upstream repo.  this fork is in place so i have stable access to current unbound
+containers.  
 
 -- steve ulrich (@sulrich)
+
+---
 
 ## What is Unbound?
 
