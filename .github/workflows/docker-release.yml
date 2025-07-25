@@ -120,17 +120,18 @@ jobs:
             type=raw,value=${{ needs.build.outputs.version }}
             type=raw,value=latest,enable=${{ github.ref_type == 'tag' || inputs.tag_as_latest == true }}
 
-      - name: Tag and push latest (if required)
-        if: github.ref_type == 'tag' || inputs.tag_as_latest == true
-        run: |
-          docker pull ${{ needs.build.outputs.image_tag }}
-          docker tag ${{ needs.build.outputs.image_tag }} ghcr.io/sulrich/docker-unbound:latest
-          docker push ghcr.io/sulrich/docker-unbound:latest
+      # - name: Tag and push latest (if required)
+      #   if: github.ref_type == 'tag' || inputs.tag_as_latest == true
+      #   run: |
+      #     docker pull ${{ needs.build.outputs.image_tag }}
+      #     docker tag ${{ needs.build.outputs.image_tag }} ghcr.io/sulrich/docker-unbound:latest
+      #     docker push ghcr.io/sulrich/docker-unbound:latest
      
-      - name: Re-tag the image for release
+      - name: Re-tag and publish multi-arch image
         run: |
-          docker buildx imagetools create ${{ needs.build.outputs.image_tag }} --tag ${{ join(steps.meta.outputs.tags, ' --tag ') }}
-
+          docker buildx imagetools create \
+            ${{ needs.build.outputs.image_tag }} \
+            $(for tag in ${{ steps.meta.outputs.tags }}; do echo --tag $tag; done)
 
       - name: Release summary
         run: |
