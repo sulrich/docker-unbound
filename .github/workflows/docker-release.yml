@@ -119,12 +119,10 @@ jobs:
           tags: |
             type=raw,value=${{ needs.build.outputs.version }}
             type=raw,value=latest,enable=${{ github.ref_type == 'tag' || inputs.tag_as_latest == true }}
-
-      # note: since i'm pushing a multi-arch image, i need to use the buildx commands
-      - name: Retag multi-arch image for release
+      
+      - name: Re-tag the image for release
         run: |
-          TAG_OPTIONS=$(echo "${{ steps.meta.outputs.tags }}" | sed 's/^/--tag /' | tr '\n' ' ')
-          docker buildx imagetools create ${{ needs.build.outputs.image_tag }} $TAG_OPTIONS
+          docker buildx imagetools create ${{ needs.build.outputs.image_tag }} --tag ${{ join(fromJSON(steps.meta.outputs.json).tags, ' --tag ') }}
 
       - name: Release summary
         run: |
@@ -133,6 +131,4 @@ jobs:
           echo "✅ successfully released docker images for version **${{ needs.build.outputs.version }}**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Published tags:" >> $GITHUB_STEP_SUMMARY
-          for tag in ${{ steps.meta.outputs.tags }}; do
-            echo "- \`$tag\`" >> $GITHUB_STEP_SUMMARY
-          done
+          echo "${{ steps.meta.outputs.tags }}" | sed -e 's/^/- \`/' -e 's/$/\`/' >> $GITHUB_STEP_SUMMARY
