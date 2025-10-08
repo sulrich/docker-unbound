@@ -24,7 +24,7 @@ RUN build_deps="curl gcc libc-dev libevent-dev libexpat1-dev libnghttp2-dev libs
     echo "${UNBOUND_SHA256} *unbound.tar.gz" | sha256sum -c - && \
     tar xzf unbound.tar.gz && \
     rm -f unbound.tar.gz && \
-    cd unbound-1.23.1 && \
+    cd unbound-1.24.0 && \
     groupadd _unbound && \
     useradd -g _unbound -s /etc -d /dev/null _unbound && \
     ./configure \
@@ -82,13 +82,13 @@ WORKDIR /opt/unbound/
 
 ENV PATH="/opt/unbound/sbin:$PATH"
 
-ENV UNBOUND_VERSION=1.23.1
+ENV UNBOUND_VERSION=1.24.0
 
 LABEL org.opencontainers.image.version=${UNBOUND_VERSION} \
       org.opencontainers.image.title="sulrich/docker-unbound" \
       org.opencontainers.image.description="a validating, recursive, and caching DNS resolver" \
       org.opencontainers.image.url="https://github.com/sulrich/docker-unbound" \
-      org.opencontainers.image.vendor="steve ulrivh" \
+      org.opencontainers.image.vendor="steve ulrich" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.source="https://github.com/sulrich/docker-unbound"
 
