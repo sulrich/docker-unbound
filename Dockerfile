@@ -1,9 +1,9 @@
 FROM debian:bookworm AS unbound
 
 ENV NAME=unbound
-ENV UNBOUND_VERSION=1.23.1
-ENV UNBOUND_SHA256=6a6b117c799d8de3868643397e0fd71591f6d42f4473f598bdb22609ff362590
-ENV UNBOUND_DOWNLOAD_URL=https://nlnetlabs.nl/downloads/unbound/unbound-1.23.1.tar.gz
+ENV UNBOUND_VERSION=1.24.0
+ENV UNBOUND_SHA256=147b22983cc7008aa21007e251b3845bfcf899ffd2d3b269253ebf2e27465086
+ENV UNBOUND_DOWNLOAD_URL=https://nlnetlabs.nl/downloads/unbound/unbound-1.24.0.tar.gz
 
 WORKDIR /tmp/src
 
@@ -24,7 +24,7 @@ RUN build_deps="curl gcc libc-dev libevent-dev libexpat1-dev libnghttp2-dev libs
     echo "${UNBOUND_SHA256} *unbound.tar.gz" | sha256sum -c - && \
     tar xzf unbound.tar.gz && \
     rm -f unbound.tar.gz && \
-    cd unbound-1.23.1 && \
+    cd unbound-1.24.0 && \
     groupadd _unbound && \
     useradd -g _unbound -s /etc -d /dev/null _unbound && \
     ./configure \
@@ -82,13 +82,13 @@ WORKDIR /opt/unbound/
 
 ENV PATH="/opt/unbound/sbin:$PATH"
 
-ENV UNBOUND_VERSION=1.23.1
+ENV UNBOUND_VERSION=1.24.0
 
 LABEL org.opencontainers.image.version=${UNBOUND_VERSION} \
       org.opencontainers.image.title="sulrich/docker-unbound" \
       org.opencontainers.image.description="a validating, recursive, and caching DNS resolver" \
       org.opencontainers.image.url="https://github.com/sulrich/docker-unbound" \
-      org.opencontainers.image.vendor="steve ulrivh" \
+      org.opencontainers.image.vendor="steve ulrich" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.source="https://github.com/sulrich/docker-unbound"
 
