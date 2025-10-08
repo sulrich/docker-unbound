@@ -2,8 +2,8 @@ FROM debian:bookworm AS unbound
 
 ENV NAME=unbound
 ENV UNBOUND_VERSION=1.24.0
-ENV UNBOUND_SHA256=7d7832b9b948d95b6751dce392806814d427b3ed64efc2ec863f486dec26d759
-ENV UNBOUND_DOWNLOAD_URL=https://github.com/NLnetLabs/unbound/archive/refs/tags/release-1.24.0.tar.gz
+ENV UNBOUND_SHA256=147b22983cc7008aa21007e251b3845bfcf899ffd2d3b269253ebf2e27465086
+ENV UNBOUND_DOWNLOAD_URL=https://nlnetlabs.nl/downloads/unbound/unbound-1.24.0.tar.gz
 
 WORKDIR /tmp/src
 
