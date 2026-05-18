@@ -1,9 +1,9 @@
 FROM debian:bookworm AS unbound
 
 ENV NAME=unbound
-ENV UNBOUND_VERSION=1.24.2
-ENV UNBOUND_SHA256=44e7b53e008a6dcaec03032769a212b46ab5c23c105284aa05a4f3af78e59cdb
-ENV UNBOUND_DOWNLOAD_URL=https://nlnetlabs.nl/downloads/unbound/unbound-1.24.2.tar.gz
+ENV UNBOUND_VERSION=1.25.0
+ENV UNBOUND_SHA256=062a6eda723fe2f041bee4079b76981569f1d12e066bbd74800242fc1ebddec7
+ENV UNBOUND_DOWNLOAD_URL=https://nlnetlabs.nl/downloads/unbound/unbound-1.25.0.tar.gz
 
 WORKDIR /tmp/src
 
@@ -24,7 +24,7 @@ RUN build_deps="curl gcc libc-dev libevent-dev libexpat1-dev libnghttp2-dev libs
     echo "${UNBOUND_SHA256} *unbound.tar.gz" | sha256sum -c - && \
     tar xzf unbound.tar.gz && \
     rm -f unbound.tar.gz && \
-    cd unbound-1.24.2 && \
+    cd unbound-${UNBOUND_VERSION} && \
     groupadd _unbound && \
     useradd -g _unbound -s /etc -d /dev/null _unbound && \
     ./configure \
@@ -82,7 +82,7 @@ WORKDIR /opt/unbound/
 
 ENV PATH="/opt/unbound/sbin:$PATH"
 
-ENV UNBOUND_VERSION=1.24.2
+ENV UNBOUND_VERSION=1.25.0
 
 LABEL org.opencontainers.image.version=${UNBOUND_VERSION} \
       org.opencontainers.image.title="sulrich/docker-unbound" \
