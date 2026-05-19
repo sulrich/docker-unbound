@@ -5,72 +5,53 @@ on:
     branches:
       - main
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'unbound version to build (e.g., 1.23.1)'
-        required: false
-        type: string
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: docker-unbound
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    name: build ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runs-on: ubuntu-latest
+            arch: amd64
+          - platform: linux/arm64
+            runs-on: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runs-on }}
     permissions:
       contents: read
       packages: read
-    
+
     steps:
       - name: checkout repository
-        uses: actions/checkout@v4
-      
-      - name: set up qemu
-        uses: docker/setup-qemu-action@v3
-      
+        uses: actions/checkout@v6
+
       - name: set up docker buildx
-        uses: docker/setup-buildx-action@v3
-      
-      - name: determine version
-        id: version
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.version }}" ]]; then
-            VERSION="${{ inputs.version }}"
-          else
-            VERSION=$(grep "ENV UNBOUND_VERSION=" Dockerfile | cut -d'=' -f2 | tr -d '\n')
-            if [[ -z "$VERSION" ]]; then
-              echo "❌ could not determine unbound version from dockerfile" >&2
-              exit 1
-            fi
-          fi
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "📦 building version: ${VERSION}"
-      
+        uses: docker/setup-buildx-action@v4
+
       - name: build docker image for testing
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
           load: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            UNBOUND_VERSION=${{ steps.version.outputs.version }}
-      
+          tags: ${{ env.IMAGE_NAME }}:test
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+
       - name: run docker image tests
-        run: |
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test /test.sh
-      
+        run: docker run --rm ${{ env.IMAGE_NAME }}:test /test.sh
+
       - name: build summary
         run: |
-          echo "## 🐳 docker build summary" >> $GITHUB_STEP_SUMMARY
+          echo "## docker build summary (${{ matrix.platform }})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ successfully built multi-arch images for version **${{ steps.version.outputs.version }}**" >> $GITHUB_STEP_SUMMARY
+          echo "built and tested on **${{ matrix.platform }}** (native runner: ${{ matrix.runs-on }})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **platforms**: linux/amd64, linux/arm64, linux/arm/v7" >> $GITHUB_STEP_SUMMARY
-          echo "- **context**: \`.\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **dockerfile**: \`./Dockerfile\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📝 **note**: this was a test build only - no images were pushed to registry" >> $GITHUB_STEP_SUMMARY
+          echo "note: test build only - no images pushed to registry" >> $GITHUB_STEP_SUMMARY
