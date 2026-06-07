@@ -1,9 +1,18 @@
+# single source of truth for version bumps — edit these two values only.
+# the SHA256 is published alongside the tarball at
+# https://nlnetlabs.nl/downloads/unbound/unbound-<version>.tar.gz.sha256
+ARG UNBOUND_VERSION=1.25.1
+ARG UNBOUND_SHA256=0fe8b6277b0959cfd17562debac0aa5f71e0b02dc4ffa9c60271c583edab586f
+
 FROM debian:bookworm AS unbound
 
+# re-declare to pull the global ARGs into this stage's scope
+ARG UNBOUND_VERSION
+ARG UNBOUND_SHA256
 ENV NAME=unbound
-ENV UNBOUND_VERSION=1.25.0
-ENV UNBOUND_SHA256=062a6eda723fe2f041bee4079b76981569f1d12e066bbd74800242fc1ebddec7
-ENV UNBOUND_DOWNLOAD_URL=https://nlnetlabs.nl/downloads/unbound/unbound-1.25.0.tar.gz
+ENV UNBOUND_VERSION=${UNBOUND_VERSION}
+ENV UNBOUND_SHA256=${UNBOUND_SHA256}
+ENV UNBOUND_DOWNLOAD_URL=https://nlnetlabs.nl/downloads/unbound/unbound-${UNBOUND_VERSION}.tar.gz
 
 WORKDIR /tmp/src
 
@@ -50,6 +59,9 @@ RUN build_deps="curl gcc libc-dev libevent-dev libexpat1-dev libnghttp2-dev libs
 # build the target image
 FROM debian:bookworm
 
+# re-declare to pull the global ARG into this stage's scope
+ARG UNBOUND_VERSION
+
 WORKDIR /tmp/src
 
 COPY --from=unbound /opt /opt
@@ -82,7 +94,7 @@ WORKDIR /opt/unbound/
 
 ENV PATH="/opt/unbound/sbin:$PATH"
 
-ENV UNBOUND_VERSION=1.25.0
+ENV UNBOUND_VERSION=${UNBOUND_VERSION}
 
 LABEL org.opencontainers.image.version=${UNBOUND_VERSION} \
       org.opencontainers.image.title="sulrich/docker-unbound" \
