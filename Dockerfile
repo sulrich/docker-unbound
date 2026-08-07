@@ -1,8 +1,8 @@
 # single source of truth for version bumps — edit these two values only.
 # the SHA256 is published alongside the tarball at
 # https://nlnetlabs.nl/downloads/unbound/unbound-<version>.tar.gz.sha256
-ARG UNBOUND_VERSION=1.25.2
-ARG UNBOUND_SHA256=0d92275c703d5f5f8baba3dab22117dd8c29b495588a5c229768ed6581566600
+ARG UNBOUND_VERSION=1.26.0
+ARG UNBOUND_SHA256=77458a7156e275c0b7b17fabcb357cb12445d95cfcb26fb9bb7d5ecba45e0b63
 
 FROM debian:bookworm AS unbound
 
