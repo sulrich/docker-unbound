@@ -23,10 +23,7 @@ RUN build_deps="curl gcc libc-dev libevent-dev libexpat1-dev libnghttp2-dev libs
       ldnsutils \
       bison \
       flex \
-      build-essential \
-      libssl-dev \
-      libevent-2.1-7 \
-      libexpat1 && \
+      build-essential && \
     curl -fsSL "$UNBOUND_DOWNLOAD_URL" -o unbound.tar.gz && \
     UNBOUND_SHA256="$(curl -fsSL "$UNBOUND_SHA256_URL" | awk '{print $1}')" && \
     echo "$UNBOUND_SHA256" | grep -Eq '^[0-9a-f]{64}$' && \
@@ -67,7 +64,9 @@ WORKDIR /tmp/src
 COPY --from=unbound /opt /opt
 
 RUN set -x && \
-    DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y --no-install-recommends \
+    DEBIAN_FRONTEND=noninteractive apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get upgrade -y && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       bsdmainutils \
       ca-certificates \
       ldnsutils \
@@ -77,8 +76,6 @@ RUN set -x && \
       libexpat1 && \
     groupadd _unbound && \
     useradd -g _unbound -s /etc -d /dev/null _unbound && \
-    apt-get purge -y --auto-remove \
-      $build_deps && \
     rm -rf \
         /opt/unbound/share/man \
         /tmp/* \

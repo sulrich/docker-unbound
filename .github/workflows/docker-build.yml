@@ -42,6 +42,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           load: true
           tags: ${{ env.IMAGE_NAME }}:test
+          pull: true
           cache-from: type=gha,scope=${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
 

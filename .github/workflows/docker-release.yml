@@ -76,6 +76,11 @@ jobs:
           platforms: ${{ matrix.platform }}
           load: true
           tags: docker-unbound:test
+          # always rebuild releases from a fresh base image and current
+          # debian packages so security fixes are picked up. cache-to still
+          # runs so the push step below reuses these freshly built layers.
+          pull: true
+          no-cache: true
           cache-from: type=gha,scope=${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
 
@@ -89,6 +94,7 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          pull: true
           cache-from: type=gha,scope=${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
 
