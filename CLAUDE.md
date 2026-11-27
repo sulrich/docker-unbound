@@ -8,12 +8,12 @@ Multi-arch Docker image for the [Unbound](https://unbound.nlnetlabs.nl/) recursi
 
 ## Bumping the Unbound version
 
-A version bump touches **two** values that must stay in sync; mismatches will break either the build or the release tagging:
+A version bump touches **two** things that must stay in sync; mismatches will break the release tagging:
 
-1. `Dockerfile` — the two global `ARG`s declared before the first `FROM`: `ARG UNBOUND_VERSION` and `ARG UNBOUND_SHA256`. These are the single source of truth. Everything downstream derives from them: each stage re-declares the `ARG`s to pull them into scope, the builder's `UNBOUND_DOWNLOAD_URL` is built from `${UNBOUND_VERSION}`, and the runtime image label reuses the version. The SHA256 is published alongside the tarball at `https://nlnetlabs.nl/downloads/unbound/unbound-<version>.tar.gz.sha256`.
+1. `Dockerfile` — the global `ARG UNBOUND_VERSION` declared before the first `FROM`. This is the single source of truth. Everything downstream derives from it: each stage re-declares the `ARG` to pull it into scope, the builder's `UNBOUND_DOWNLOAD_URL` and `UNBOUND_SHA256_URL` are built from `${UNBOUND_VERSION}`, and the runtime image label reuses the version. The SHA256 is not hardcoded — the builder fetches it at build time from `https://nlnetlabs.nl/downloads/unbound/unbound-<version>.tar.gz.sha256`, validates it looks like a 64-char hex digest, and checks the tarball against it.
 2. The release is triggered by pushing a git tag of the form `v<version>` (e.g. `v1.25.0`). The release workflow strips the leading `v` and uses that as the image tag.
 
-Note: because the `Dockerfile` now declares `ARG UNBOUND_VERSION`, the `UNBOUND_VERSION` build-arg passed by the build/release workflows is live — it overrides the hardcoded default. If you override the version via build-arg, you must also pass a matching `UNBOUND_SHA256` build-arg, or the `sha256sum -c` check will fail. For normal tag-based releases the `ARG` defaults in the Dockerfile remain the source of truth.
+Note: because the `Dockerfile` now declares `ARG UNBOUND_VERSION`, the `UNBOUND_VERSION` build-arg passed by the build/release workflows is live — it overrides the hardcoded default. Since the checksum is fetched per-version, overriding the version via build-arg needs nothing else. For normal tag-based releases the `ARG` default in the Dockerfile remains the source of truth.
 
 ## Build / test / release flow
 

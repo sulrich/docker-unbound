@@ -1,18 +1,16 @@
-# single source of truth for version bumps — edit these two values only.
-# the SHA256 is published alongside the tarball at
+# single source of truth for version bumps — edit this value only.
+# the tarball's SHA256 is fetched at build time from
 # https://nlnetlabs.nl/downloads/unbound/unbound-<version>.tar.gz.sha256
-ARG UNBOUND_VERSION=1.26.1
-ARG UNBOUND_SHA256=35a6dc0e425a9282c3426d9a3043144011bf0534aed4b73ab62c52aee0af1503
+ARG UNBOUND_VERSION=1.26.2
 
 FROM debian:bookworm AS unbound
 
-# re-declare to pull the global ARGs into this stage's scope
+# re-declare to pull the global ARG into this stage's scope
 ARG UNBOUND_VERSION
-ARG UNBOUND_SHA256
 ENV NAME=unbound
 ENV UNBOUND_VERSION=${UNBOUND_VERSION}
-ENV UNBOUND_SHA256=${UNBOUND_SHA256}
 ENV UNBOUND_DOWNLOAD_URL=https://nlnetlabs.nl/downloads/unbound/unbound-${UNBOUND_VERSION}.tar.gz
+ENV UNBOUND_SHA256_URL=https://nlnetlabs.nl/downloads/unbound/unbound-${UNBOUND_VERSION}.tar.gz.sha256
 
 WORKDIR /tmp/src
 
@@ -25,11 +23,10 @@ RUN build_deps="curl gcc libc-dev libevent-dev libexpat1-dev libnghttp2-dev libs
       ldnsutils \
       bison \
       flex \
-      build-essential \
-      libssl-dev \
-      libevent-2.1-7 \
-      libexpat1 && \
-    curl -sSL $UNBOUND_DOWNLOAD_URL -o unbound.tar.gz && \
+      build-essential && \
+    curl -fsSL "$UNBOUND_DOWNLOAD_URL" -o unbound.tar.gz && \
+    UNBOUND_SHA256="$(curl -fsSL "$UNBOUND_SHA256_URL" | awk '{print $1}')" && \
+    echo "$UNBOUND_SHA256" | grep -Eq '^[0-9a-f]{64}$' && \
     echo "${UNBOUND_SHA256} *unbound.tar.gz" | sha256sum -c - && \
     tar xzf unbound.tar.gz && \
     rm -f unbound.tar.gz && \
@@ -67,7 +64,9 @@ WORKDIR /tmp/src
 COPY --from=unbound /opt /opt
 
 RUN set -x && \
-    DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y --no-install-recommends \
+    DEBIAN_FRONTEND=noninteractive apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get upgrade -y && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       bsdmainutils \
       ca-certificates \
       ldnsutils \
@@ -77,8 +76,6 @@ RUN set -x && \
       libexpat1 && \
     groupadd _unbound && \
     useradd -g _unbound -s /etc -d /dev/null _unbound && \
-    apt-get purge -y --auto-remove \
-      $build_deps && \
     rm -rf \
         /opt/unbound/share/man \
         /tmp/* \
